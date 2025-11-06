@@ -443,37 +443,48 @@ function updateSummaryCards(scopeData){
    - default: show grouped by RTS (one row per RTS)
    - if currentRTS set: show grouped by FM Office for that RTS (FM Office Summary)
 */
-function populateRTSTable(data){
+function populateRTSTable(data) {
   const tbody = document.querySelector('#rtsTable tbody');
   tbody.innerHTML = '';
 
-  // determine mode:
   const isRtsSelected = !!currentRTS;
   const groups = {};
 
-  if(isRtsSelected){
-    // group by FM Office but only rows where r.RTS === currentRTS
+  const init = () => ({ OPEN: 0, PARTIAL: 0, SUBMITTED_PARTIAL: 0, SUBMITTED: 0, COMPLETED: 0 });
+
+  if (isRtsSelected) {
+    // group by FM Office (hanya baris sesuai RTS aktif)
     data.filter(r => (r.RTS || '') === currentRTS).forEach(r => {
       const fm = r["New FM Office"] || r["FM Office"] || "N/A";
-      if(!groups[fm]) groups[fm] = { OPEN:0, PARTIAL:0, SUBMITTED_PARTIAL:0, SUBMITTED:0, COMPLETED:0 };
-      const st = (r["Progress Today"]||"").toString().trim().toUpperCase();
-      if(groups[fm][st] !== undefined) groups[fm][st]++; else groups[fm].OPEN++;
+      if (!groups[fm]) groups[fm] = init();
+      const st = (r["Progress Today"] || "")
+        .toString()
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "_"); // ubah "SUBMITTED PARTIAL" jadi "SUBMITTED_PARTIAL"
+      if (groups[fm][st] !== undefined) groups[fm][st]++;
+      else groups[fm].OPEN++;
     });
     document.getElementById('rtsTitle').textContent = `📊 FM Office Summary — ${currentRTS}`;
   } else {
     // group by RTS
-    data.forEach(r=>{
+    data.forEach(r => {
       const rts = r.RTS || 'N/A';
-      if(!groups[rts]) groups[rts] = { OPEN:0, PARTIAL:0, SUBMITTED_PARTIAL:0, SUBMITTED:0, COMPLETED:0 };
-      const st = (r["Progress Today"]||"").toString().trim().toUpperCase();
-      if(groups[rts][st] !== undefined) groups[rts][st]++; else groups[rts].OPEN++;
+      if (!groups[rts]) groups[rts] = init();
+      const st = (r["Progress Today"] || "")
+        .toString()
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "_");
+      if (groups[rts][st] !== undefined) groups[rts][st]++;
+      else groups[rts].OPEN++;
     });
     document.getElementById('rtsTitle').textContent = '📊 RTS Summary';
   }
 
-  // render rows
-  Object.entries(groups).forEach(([key, val])=>{
-    const total = Object.values(val).reduce((a,b)=>a+b,0);
+  // render table rows
+  Object.entries(groups).forEach(([key, val]) => {
+    const total = Object.values(val).reduce((a, b) => a + b, 0);
     const ach = total ? ((val.COMPLETED + val.SUBMITTED) / total * 100) : 0;
     const tr = document.createElement('tr');
     tr.dataset.key = key;
@@ -813,5 +824,6 @@ function adjustContainerHeight() {
 </script>
 </body>
 </html>
+
 
 
