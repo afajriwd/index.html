@@ -27,11 +27,11 @@ header{background:var(--card);padding:20px;text-align:center;font-size:1.25rem;
 /* Summary Cards */
 #summary-cards{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(6,1fr);
   gap:14px;
   padding:14px;
 }
-@media(max-width:768px){#summary-cards{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:768px){#summary-cards{grid-template-columns:repeat(3,1fr);}}
 
 /* Card */
 .card{background:var(--card);border:1px solid var(--border);border-radius:10px;
@@ -85,9 +85,9 @@ table:not(.sortable) th:hover{color:#58a6ff;}
 
 /* FM Contributor */
 #fm-contributor{position:relative;min-height:40px;}
-.fm-container{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:1rem;font-weight:600;color:#e6edf3;}
+.fm-container{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:1rem;font-weight:600;color:#e6edf3;}
 .fm-percent{color:var(--accent);}
-.fm-right{position:absolute;right:8px;bottom:6px;font-size:0.82rem;color:var(--muted);white-space:nowrap;}
+.fm-right{position:absolute;right:1px;bottom:1px;font-size:0.82rem;color:var(--muted);white-space:nowrap;}
 
 /* Split Grid / NE Card */
 .container-split {
@@ -171,7 +171,7 @@ table:not(.sortable) th:hover{color:#58a6ff;}
 
 .footer a:hover {
   color: #58a6ff;
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* Header tabel sortable */
@@ -190,7 +190,7 @@ table:not(.sortable) th:hover{color:#58a6ff;}
 
 .hover-accent:hover {
   color: #58a6ff; 
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* Footer */
@@ -224,6 +224,14 @@ table:not(.sortable) th:hover{color:#58a6ff;}
     <div id="total-ne" class="value">...</div>
   </div>
   <div class="card">
+    <h3>Need Approval L0 (Sites / NE)</h3>
+    <div id="needL0" class="value">...</div>
+  </div>
+  <div class="card">
+    <h3>Need Approval L1 (Sites / NE)</h3>
+    <div id="needL1" class="value">...</div>
+  </div>
+  <div class="card">
     <h3>FM Office Contributor</h3>
     <div id="fm-contributor">-</div>
   </div>
@@ -240,23 +248,26 @@ table:not(.sortable) th:hover{color:#58a6ff;}
       <h3 id="rtsTitle">📊 RTS Summary</h3>
       <div style="display:flex; gap:8px; align-items:center;">
         <button id="resetRtsBtn" class="btn">🔁 Reset</button>
+        <button id="refreshBtn" class="btn">🔄 Refresh</button>
       </div>
     </div>
 
     <div class="table-scroll-container" id="rtsContainer">
       <table id="rtsTable">
         <thead>
-          <tr>
-            <th>RTS / FM Office</th>
-            <th class="text-center hover-accent">OPEN</th>
-            <th class="text-center hover-accent">PARTIAL</th>
-            <th class="text-center hover-accent">SUBMITTED PARTIAL</th>
-            <th class="text-center hover-accent">SUBMITTED</th>
-            <th class="text-center hover-accent">COMPLETED</th>
-            <th class="text-center hover-accent">GrandTotal</th>
-            <th class="text-center hover-accent">Achievement (%)</th>
-          </tr>
-        </thead>
+  <tr>
+    <th>RTS / FM Office</th>
+    <th class="text-center hover-accent">OPEN</th>
+    <th class="text-center hover-accent">PARTIAL</th>
+    <th class="text-center hover-accent">Need Approval L0</th> <!-- baru -->
+    <th class="text-center hover-accent">Need Approval L1</th> <!-- baru -->
+    <th class="text-center hover-accent">SUBMITTED PARTIAL</th>
+    <th class="text-center hover-accent">SUBMITTED</th>
+    <th class="text-center hover-accent">COMPLETED</th>
+    <th class="text-center hover-accent">GrandTotal</th>
+    <th class="text-center hover-accent">Achievement (%)</th>
+  </tr>
+</thead>
         <tbody></tbody>
         <tfoot id="rtsGrandTotal"></tfoot>
       </table>
@@ -332,166 +343,190 @@ table:not(.sortable) th:hover{color:#58a6ff;}
 
 
 <script>
-/* ====== CONFIG ====== */
+/* ==========================
+   CONFIG & STATE
+========================== */
 const SHEET_ID = "1-bknO7W3rLH63tXCSW7ToU-KkuoOAmXXdnWHP5Qj5Qo";
 const SITE_SHEET = "Site List";
 const NE_SHEET = "NE ID";
+
 const siteURL = `https://opensheet.elk.sh/${SHEET_ID}/${encodeURIComponent(SITE_SHEET)}`;
 const neURL = `https://opensheet.elk.sh/${SHEET_ID}/${encodeURIComponent(NE_SHEET)}`;
 
 const spinner = document.getElementById('spinner');
 
-/* ====== STATE ====== */
+// ====== Global state ======
 let siteDataGlobal = [];
 let neDataGlobal = [];
 let globalGrandAchievement = 0;
 let siteDataGlobalFiltered = [];
 
 // current selection state:
-let currentRTS = null;      // if set => show FM Office summary of that RTS
-let currentSiteID = null;   // if set => NE List visible for site
+let currentRTS = null;
+let currentSiteID = null;
 
-/* ====== UTIL ====== */
+/* ==========================
+   UTILITY FUNCTIONS
+========================== */
 function showSpinner() { spinner.classList.add('active'); }
 function hideSpinner() { spinner.classList.remove('active'); }
+function safeNum(v){ const n=Number(v); return isNaN(n)?0:n; }
 
-function safeNum(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
-
-function refreshDashboard() {
-  populateFilters(siteDataGlobal);
-  populateRTSTable(siteDataGlobal);
-  populateSiteTable(siteDataGlobal);
-  filterTable();
-}
-
-
-/* ====== LOADING DATA ====== */
+/* ==========================
+   DATA LOADING
+========================== */
 async function loadData(){
   showSpinner();
   try {
-    // fetch both sheets
-    const [resSite, resNe] = await Promise.all([fetch(siteURL), fetch(neURL)]);
-    const [siteJson, neJson] = await Promise.all([resSite.json(), resNe.json()]);
+    const [resSite,resNe] = await Promise.all([fetch(siteURL),fetch(neURL)]);
+    const [siteJson,neJson] = await Promise.all([resSite.json(),resNe.json()]);
 
-    siteDataGlobal = Array.isArray(siteJson) ? siteJson : [];
-    neDataGlobal = Array.isArray(neJson) ? neJson : [];
+    siteDataGlobal = Array.isArray(siteJson)?siteJson:[];
+    neDataGlobal = Array.isArray(neJson)?neJson:[];
 
-    // initial render (Level 1)
-    updateSummaryCards(siteDataGlobal);
+    // initial render
+    updateSummaryCards(siteDataGlobal, neDataGlobal);
     refreshDashboard();
   } catch(err){
-    alert('Gagal memuat data: ' + err.message);
+    alert('Gagal memuat data: '+err.message);
     console.error(err);
   } finally {
     hideSpinner();
   }
 }
 
-/* ====== SUMMARY CARDS (follows current scope) ======
-  scopeData: array (already filtered by RTS or Site if needed)
-*/
-function updateSummaryCards(scopeData){
-  const data = Array.isArray(scopeData) ? scopeData : [];
-
-  // Sites counts (Open includes OPEN, PARTIAL, SUBMITTED PARTIAL)
-  const totalSiteAll = data.length;
+/* ==========================
+   SUMMARY CARDS
+========================== */
+function updateSummaryCards(siteData=siteDataGlobal, neData=neDataGlobal){
+  // ====== Sites ======
+  const totalSiteAll = siteData.length;
   const openStatuses = ["OPEN","PARTIAL","SUBMITTED PARTIAL"];
-  const totalSiteOpen = data.filter(r => openStatuses.includes((r["Progress Today"]||"").toString().trim().toUpperCase())).length;
-  const totalSiteClosed = data.filter(r => ["COMPLETED","SUBMITTED"].includes((r["Progress Today"]||"").toString().trim().toUpperCase())).length;
-  document.getElementById('total-site').textContent = `${totalSiteAll} / ${totalSiteOpen} / ${totalSiteClosed}`;
+  const totalSiteOpen = siteData.filter(r => openStatuses.includes(((r["Progress Today"]||"")+"").trim().toUpperCase())).length;
+  const totalSiteClosed = siteData.filter(r => ["COMPLETED","SUBMITTED"].includes(((r["Progress Today"]||"")+"").trim().toUpperCase())).length;
 
-  // NE counts
-  const totalNEAll = data.reduce((s,r)=> s + safeNum(r["Total NE"]), 0);
-  const totalNEOpen = data.reduce((s,r)=> s + safeNum(r["NE Still Open"]), 0);
+  if(document.getElementById('total-site'))
+    document.getElementById('total-site').textContent = `${totalSiteAll} / ${totalSiteOpen} / ${totalSiteClosed}`;
+
+  // ====== NE ======
+  const totalNEAll = siteData.reduce((s,r)=>s+safeNum(r["Total NE"]),0);
+  const totalNEOpen = siteData.reduce((s,r)=>s+safeNum(r["NE Still Open"]),0);
   const totalNEClosed = totalNEAll - totalNEOpen;
-  document.getElementById('total-ne').textContent = `${totalNEAll} / ${totalNEOpen} / ${totalNEClosed}`;
+  if(document.getElementById('total-ne'))
+    document.getElementById('total-ne').textContent = `${totalNEAll} / ${totalNEOpen} / ${totalNEClosed}`;
 
-  // FM Office Contributor (top FM by percent within scope)
+  // ====== Need Approval L0 & L1 ======
+  const sitesL0 = siteData.filter(r=>{
+    const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
+    const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
+    return approval==="NEED APPROVAL 0" || (["SUBMITTED"].includes(prog) && approval!=="NEED APPROVAL 1");
+  }).length;
+
+  const sitesL1 = siteData.filter(r=>((r["Approval Status"]||"")+"").trim().toUpperCase()==="NEED APPROVAL 1").length;
+
+  const nesL0 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL0").length;
+  const nesL1 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL1").length;
+
+  if(document.getElementById('needL0')) document.getElementById('needL0').textContent = `${sitesL0} / ${nesL0}`;
+  if(document.getElementById('needL1')) document.getElementById('needL1').textContent = `${sitesL1} / ${nesL1}`;
+
+  // ====== FM Office contributor ======
   const fmStats = {};
-  data.forEach(r=>{
-    const fm = (r["New FM Office"] || r["FM Office"] || "N/A");
-    if(!fmStats[fm]) fmStats[fm] = { total:0, done:0 };
+  siteData.forEach(r=>{
+    const fm = r["New FM Office"] || r["FM Office"] || "N/A";
+    if(!fmStats[fm]) fmStats[fm] = {total:0, done:0};
+    if(["COMPLETED","SUBMITTED"].includes(((r["Progress Today"]||"")+"").trim().toUpperCase())) fmStats[fm].done++;
     fmStats[fm].total++;
-    if(["COMPLETED","SUBMITTED"].includes((r["Progress Today"]||"").toString().trim().toUpperCase())) fmStats[fm].done++;
   });
-  const fmPerformance = Object.entries(fmStats).map(([fm,{total,done}])=>({ fm, total, done, percent: total ? (done/total*100) : 0 }));
-  const topFM = fmPerformance.sort((a,b)=>b.percent - a.percent)[0];
-
-  if(topFM){
-    // contribution of this FM to Grand Achievement (globalGrandAchievement based on currently displayed RTS summary)
-    // We compute contribution as (site closed by FM / total closed across scope) * GrandAchievement (same logic as Level1)
+  const fmPerformance = Object.entries(fmStats).map(([fm,{total,done}])=>({fm,total,done,percent: total?(done/total*100):0}));
+  const topFM = fmPerformance.sort((a,b)=>b.percent-a.percent)[0];
+  if(topFM && document.getElementById('fm-contributor')){
     const totalClosedAcross = fmPerformance.reduce((s,f)=>s+f.done,0);
-    const contribution = totalClosedAcross ? (topFM.done / totalClosedAcross) * globalGrandAchievement : 0;
+    const contribution = totalClosedAcross?(topFM.done/totalClosedAcross)*(globalGrandAchievement||0):0;
     document.getElementById('fm-contributor').innerHTML = `
-      <div class="fm-container">
-        <div class="fm-left">
-          <div class="fm-name">${topFM.fm}</div>
-          <div class="fm-percent">(${topFM.percent.toFixed(2)}%)</div>
-        </div>
-        <div class="fm-right">( + ${contribution.toFixed(2)}% of Total )</div>
-      </div>
+<div class="fm-container" style="display: flex; justify-content: space-between; align-items: center;">
+  <div class="fm-left" style="display: flex; align-items: center; gap: 8px;">
+    <div class="fm-name" style="font-weight: bold;">${topFM.fm}</div>
+    <div class="fm-percent" style="color:var(--accent);">(${topFM.percent.toFixed(2)}%)</div>
+  </div>
+  <div class="fm-right" style="margin-left: 20px; font-style: italic;">
+    (+ ${contribution.toFixed(2)}% of Total)
+  </div>
+</div>
+
     `;
-  } else {
-    document.getElementById('fm-contributor').textContent = '-';
   }
 
-  document.getElementById('total-achievement').textContent = (globalGrandAchievement || 0).toFixed(2) + "%";
+  if(document.getElementById('total-achievement'))
+    document.getElementById('total-achievement').textContent = (globalGrandAchievement||0).toFixed(2)+"%";
 }
 
-/* ====== RTS TABLE ======
-   Behavior:
-   - default: show grouped by RTS (one row per RTS)
-   - if currentRTS set: show grouped by FM Office for that RTS (FM Office Summary)
-*/
-function populateRTSTable(data) {
+/* ==========================
+   DASHBOARD REFRESH
+========================== */
+function refreshDashboard(){
+  populateFilters(siteDataGlobal);
+  populateRTSTable(siteDataGlobal);
+  populateSiteTable(siteDataGlobal);
+  filterTable();
+}
+
+/* ==========================
+   RTS TABLE
+========================== */
+function populateRTSTable(data){
   const tbody = document.querySelector('#rtsTable tbody');
-  tbody.innerHTML = '';
+  tbody.innerHTML='';
 
   const isRtsSelected = !!currentRTS;
   const groups = {};
 
-  const init = () => ({ OPEN: 0, PARTIAL: 0, SUBMITTED_PARTIAL: 0, SUBMITTED: 0, COMPLETED: 0 });
+  const init = ()=>({OPEN:0, PARTIAL:0, SUBMITTED_PARTIAL:0, SUBMITTED:0, COMPLETED:0,"Need Approval L0":0,"Need Approval L1":0});
 
-  if (isRtsSelected) {
-    // group by FM Office (hanya baris sesuai RTS aktif)
-    data.filter(r => (r.RTS || '') === currentRTS).forEach(r => {
-      const fm = r["New FM Office"] || r["FM Office"] || "N/A";
-      if (!groups[fm]) groups[fm] = init();
-      const st = (r["Progress Today"] || "")
-        .toString()
-        .trim()
-        .toUpperCase()
-        .replace(/\s+/g, "_"); // ubah "SUBMITTED PARTIAL" jadi "SUBMITTED_PARTIAL"
-      if (groups[fm][st] !== undefined) groups[fm][st]++;
-      else groups[fm].OPEN++;
+  if(isRtsSelected){
+    // group by FM Office
+    data.filter(r=>(r.RTS||'')===currentRTS).forEach(r=>{
+      const fm = r["New FM Office"]||r["FM Office"]||"N/A";
+      if(!groups[fm]) groups[fm]=init();
+      const st = (r["Progress Today"]||"").trim().toUpperCase().replace(/\s+/g,'_');
+      groups[fm][st] = (groups[fm][st]||0)+1;
+
+      const approval = r["Approval Status"]||"";
+      const prog = (r["Progress Today"]||"").toUpperCase();
+      if(approval==="Need Approval 0" || (["SUBMITTED"].includes(prog) && approval!=="Need Approval 1"))
+        groups[fm]["Need Approval L0"]++;
+      if(approval==="Need Approval 1") groups[fm]["Need Approval L1"]++;
     });
-    document.getElementById('rtsTitle').textContent = `📊 FM Office Summary — ${currentRTS}`;
+    document.getElementById('rtsTitle').textContent=`📊 FM Office Summary — ${currentRTS}`;
   } else {
     // group by RTS
-    data.forEach(r => {
-      const rts = r.RTS || 'N/A';
-      if (!groups[rts]) groups[rts] = init();
-      const st = (r["Progress Today"] || "")
-        .toString()
-        .trim()
-        .toUpperCase()
-        .replace(/\s+/g, "_");
-      if (groups[rts][st] !== undefined) groups[rts][st]++;
-      else groups[rts].OPEN++;
+    data.forEach(r=>{
+      const rts = r.RTS||'N/A';
+      if(!groups[rts]) groups[rts]=init();
+      const st = (r["Progress Today"]||"").trim().toUpperCase().replace(/\s+/g,'_');
+      groups[rts][st]=(groups[rts][st]||0)+1;
+
+      const approval = r["Approval Status"]||"";
+      const prog = (r["Progress Today"]||"").toUpperCase();
+      if(approval==="Need Approval 0" || (["SUBMITTED"].includes(prog) && approval!=="Need Approval 1"))
+        groups[rts]["Need Approval L0"]++;
+      if(approval==="Need Approval 1") groups[rts]["Need Approval L1"]++;
     });
-    document.getElementById('rtsTitle').textContent = '📊 RTS Summary';
+    document.getElementById('rtsTitle').textContent='📊 RTS Summary';
   }
 
-  // render table rows
-  Object.entries(groups).forEach(([key, val]) => {
-    const total = Object.values(val).reduce((a, b) => a + b, 0);
-    const ach = total ? ((val.COMPLETED + val.SUBMITTED) / total * 100) : 0;
-    const tr = document.createElement('tr');
-    tr.dataset.key = key;
-    tr.innerHTML = `
+  // render rows
+  Object.entries(groups).forEach(([key,val])=>{
+    const total=val.OPEN+val.PARTIAL+val.SUBMITTED_PARTIAL+val.SUBMITTED+val.COMPLETED;
+    const ach = total?((val.COMPLETED+val.SUBMITTED)/total*100):0;
+    const tr=document.createElement('tr');
+    tr.dataset.key=key;
+    tr.innerHTML=`
       <td>${key}</td>
       <td class="text-center">${val.OPEN}</td>
       <td class="text-center">${val.PARTIAL}</td>
+      <td class="text-center">${val["Need Approval L0"]}</td>
+      <td class="text-center">${val["Need Approval L1"]}</td>
       <td class="text-center">${val.SUBMITTED_PARTIAL}</td>
       <td class="text-center">${val.SUBMITTED}</td>
       <td class="text-center">${val.COMPLETED}</td>
@@ -501,22 +536,22 @@ function populateRTSTable(data) {
     tbody.appendChild(tr);
   });
 
-  // compute grand totals from groups (for current view)
-  const grand = Object.values(groups).reduce((acc, v) => {
-    acc.OPEN += v.OPEN; acc.PARTIAL += v.PARTIAL; acc.SUBMITTED_PARTIAL += v.SUBMITTED_PARTIAL;
-    acc.SUBMITTED += v.SUBMITTED; acc.COMPLETED += v.COMPLETED;
+  // calculate grand total
+  const grand=Object.values(groups).reduce((acc,v)=>{
+    for(const k in v) acc[k]=(acc[k]||0)+v[k];
     return acc;
-  }, { OPEN:0, PARTIAL:0, SUBMITTED_PARTIAL:0, SUBMITTED:0, COMPLETED:0 });
+  },{});
+  const grandTotal=grand.OPEN+grand.PARTIAL+grand.SUBMITTED_PARTIAL+grand.SUBMITTED+grand.COMPLETED;
+  const grandAch=grandTotal?((grand.COMPLETED+grand.SUBMITTED)/grandTotal*100):0;
+  globalGrandAchievement=grandAch;
 
-  const grandTotal = Object.values(grand).reduce((a,b)=>a+b,0);
-  const grandAch = grandTotal ? ((grand.COMPLETED + grand.SUBMITTED) / grandTotal * 100) : 0;
-  globalGrandAchievement = grandAch;
-
-  document.getElementById('rtsGrandTotal').innerHTML = `
+  document.getElementById('rtsGrandTotal').innerHTML=`
     <tr style="font-weight:600; background:var(--panel);">
       <td>Grand Total</td>
       <td class="text-center">${grand.OPEN}</td>
       <td class="text-center">${grand.PARTIAL}</td>
+      <td class="text-center">${grand["Need Approval L0"]}</td>
+      <td class="text-center">${grand["Need Approval L1"]}</td>
       <td class="text-center">${grand.SUBMITTED_PARTIAL}</td>
       <td class="text-center">${grand.SUBMITTED}</td>
       <td class="text-center">${grand.COMPLETED}</td>
@@ -525,88 +560,65 @@ function populateRTSTable(data) {
     </tr>
   `;
 
-  // attach click handlers for interactivity (RTS row click)
-  // behavior: if clicking an RTS row when in default mode → set currentRTS and re-render groups by FM office and filter Site List
-  // if clicking FM Office row while in FM view → (optional) do nothing or could filter site list by FM (we'll filter to FM)
-  const rows = tbody.querySelectorAll('tr');
-  rows.forEach(row => {
-    row.style.cursor = 'pointer';
-    row.onclick = () => {
-      const key = row.dataset.key;
-      if(!currentRTS){
-        // clicked RTS → switch to FM Office summary for this RTS
-        currentRTS = key;
-        // update rts table to show FM Office
-        populateRTSTable(siteDataGlobal);
-        // auto set rtsFilter so Site List filters
-        document.getElementById('rtsFilter').value = currentRTS;
-        handleRTSFilterChange(); // will filter FM dropdown and site table
-      } else {
-        // currently in FM Office view: clicking FM row should filter Site List to FM office (within current RTS)
-        const clickedFM = key;
-        // set FM filter (only among fm options)
-        document.getElementById('fmFilter').value = clickedFM;
-        filterTable();
-      }
+  // klik drill-down RTS/FMO
+  tbody.querySelectorAll('tr').forEach(row=>{
+    row.style.cursor='pointer';
+    row.onclick=()=>{
+      const key=row.dataset.key;
+      if(!currentRTS){ currentRTS=key; populateRTSTable(data); document.getElementById('rtsFilter').value=currentRTS; handleRTSFilterChange(); }
+      else { document.getElementById('fmFilter').value=key; filterTable(); }
     };
   });
 
-  // update summary cards to follow current view scope: if currentRTS -> scopeData = siteDataGlobal filtered by RTS
-  const scopeData = currentRTS ? siteDataGlobal.filter(r => (r.RTS || '') === currentRTS) : siteDataGlobal;
-  updateSummaryCards(scopeData);
+  const scopeSites=currentRTS?siteDataGlobal.filter(r=>(r.RTS||'')===currentRTS):siteDataGlobal;
+  const scopeNE=currentRTS?neDataGlobal.filter(n=>(n.RTS||'')===currentRTS):neDataGlobal;
+  updateSummaryCards(scopeSites, scopeNE);
 }
 
-/* ====== FILTERS population & behavior ====== */
+/* ==========================
+   FILTERS
+========================== */
 function populateFilters(data){
-  const rtsSet = [...new Set(data.map(r=>r.RTS).filter(Boolean))].sort();
-  const fmSet = [...new Set(data.map(r=>r["New FM Office"]).filter(Boolean))].sort();
+  const rtsSet=[...new Set(data.map(r=>r.RTS).filter(Boolean))].sort();
+  const fmSet=[...new Set(data.map(r=>r["New FM Office"]).filter(Boolean))].sort();
 
-  const rtsFilter = document.getElementById('rtsFilter');
-  const fmFilter = document.getElementById('fmFilter');
+  const rtsFilter=document.getElementById('rtsFilter');
+  const fmFilter=document.getElementById('fmFilter');
 
-  rtsFilter.innerHTML = `<option value="">Filter RTS</option>` + rtsSet.map(r => `<option value="${r}">${r}</option>`).join('');
-  fmFilter.innerHTML = `<option value="">Filter FM Office</option>` + fmSet.map(f => `<option value="${f}">${f}</option>`).join('');
+  rtsFilter.innerHTML=`<option value="">Filter RTS</option>`+rtsSet.map(r=>`<option value="${r}">${r}</option>`).join('');
+  fmFilter.innerHTML=`<option value="">Filter FM Office</option>`+fmSet.map(f=>`<option value="${f}">${f}</option>`).join('');
 }
 
 function handleRTSFilterChange(){
-  const selected = document.getElementById('rtsFilter').value;
-  const fmFilter = document.getElementById('fmFilter');
+  const selected=document.getElementById('rtsFilter').value;
+  const fmFilter=document.getElementById('fmFilter');
 
-  // update FM dropdown to only FM in selected RTS
-  let filteredFM = siteDataGlobal
-    .filter(r => !selected || r.RTS === selected)
-    .map(r => r["New FM Office"])
-    .filter(Boolean);
-  filteredFM = [...new Set(filteredFM)].sort();
-  fmFilter.innerHTML = `<option value="">Filter FM Office</option>` + filteredFM.map(f=>`<option value="${f}">${f}</option>`).join('');
+  let filteredFM=siteDataGlobal.filter(r=>!selected||r.RTS===selected).map(r=>r["New FM Office"]).filter(Boolean);
+  filteredFM=[...new Set(filteredFM)].sort();
+  fmFilter.innerHTML=`<option value="">Filter FM Office</option>`+filteredFM.map(f=>`<option value="${f}">${f}</option>`).join('');
 
-  // if we changed selected RTS manually via dropdown, update currentRTS state and rts table accordingly
-  if(selected){
-    currentRTS = selected;
-  } else {
-    currentRTS = null;
-  }
+  currentRTS=selected||null;
   populateRTSTable(siteDataGlobal);
   filterTable();
 }
 
-/* ====== SITE TABLE population & behavior ====== */
+/* ==========================
+   SITE TABLE
+========================== */
 function populateSiteTable(data){
-  // gunakan data yang sudah difilter
-  siteDataGlobalFiltered = data;
+  siteDataGlobalFiltered=data;
+  const {pageData,totalPages}=getPaginatedData(data);
 
-  const { pageData, totalPages } = getPaginatedData(siteDataGlobalFiltered);
-
-  const tbody = document.querySelector('#siteTable tbody');
-  tbody.innerHTML = pageData.map(r => `
-    <tr data-siteid="${(r["New Site ID"]||'').toString().trim()}">
-      <td>${r.RTS || ''}</td>
-      <td>${r["New FM Office"] || r["FM Office"] || ''}</td>
-      <td class="text-center">${r["New Site ID"] || ''}</td>
-      <td>${r["Site Name"] || ''}</td>
-      <td class="text-center">${r["Progress Today"] || ''}</td>
-      <td class="text-center">${r["Total NE"] || 0}</td>
-      <td class="text-center">${r["NE Still Open"] || 0}</td>
+  const tbody=document.querySelector('#siteTable tbody');
+  tbody.innerHTML=pageData.map(r=>`
+    <tr data-siteid="${(r["New Site ID"]||'').trim()}">
+      <td>${r.RTS||''}</td>
+      <td>${r["New FM Office"]||r["FM Office"]||''}</td>
+      <td class="text-center">${r["New Site ID"]||''}</td>
+      <td>${r["Site Name"]||''}</td>
+      <td class="text-center">${r["Progress Today"]||''}</td>
+      <td class="text-center">${r["Total NE"]||0}</td>
+      <td class="text-center">${r["NE Still Open"]||0}</td>
     </tr>
   `).join('');
 
@@ -614,216 +626,206 @@ function populateSiteTable(data){
   attachSiteRowHandlers();
 }
 
-
-/* helper: attach click handlers for site rows */
 function attachSiteRowHandlers(){
-  const rows = document.querySelectorAll('#siteTable tbody tr');
-  const container = document.querySelector('.container-split');
-  rows.forEach(row => {
-    row.style.cursor = 'pointer';
-    row.onclick = () => {
-      const siteID = row.dataset.siteid;
+  const rows=document.querySelectorAll('#siteTable tbody tr');
+  const container=document.querySelector('.container-split');
+  rows.forEach(row=>{
+    row.style.cursor='pointer';
+    row.onclick=()=>{
+      const siteID=row.dataset.siteid;
       if(!siteID) return;
-      currentSiteID = siteID;
+      currentSiteID=siteID;
       showNEListForSite(siteID);
-
-      // aktifkan mode split (tampilkan NE ID List di kanan)
       container.classList.add('ne-active');
       document.getElementById('neListWrapper').setAttribute('aria-hidden','false');
 
-      // update judul NE
-      const siteName = row.querySelectorAll('td')[3]?.textContent || '';
-      document.getElementById('neTitle').textContent = `📡 NE List — ${siteID} | ${siteName}`;
-
-      // update RTS Summary
+      const siteName=row.querySelectorAll('td')[3]?.textContent||'';
+      document.getElementById('neTitle').textContent=`📡 NE List — ${siteID} | ${siteName}`;
       populateRTSTable(siteDataGlobal);
     };
   });
 }
 
-
-/* ====== NE List ====== */
+/* ==========================
+   NE LIST
+========================== */
 function showNEListForSite(siteID){
-  // filter neDataGlobal for Site ID
-  const rows = neDataGlobal.filter(r => (r["Site ID"]||'').toString().trim() === siteID);
-  const tbody = document.querySelector('#neTable tbody');
-  // render 4 columns: Site ID | Site Name | NE ID | Daily Progress (display as Status)
-  tbody.innerHTML = rows.map(r => `
+  const rows=neDataGlobal.filter(r=>((r["Site ID"]||'').trim())===siteID);
+  const tbody=document.querySelector('#neTable tbody');
+  tbody.innerHTML=rows.map(r=>`
     <tr>
-      <td>${r["Site ID"] || ''}</td>
-      <td>${r["Site Name"] || ''}</td>
-      <td>${r["NE ID"] || ''}</td>
-      <td>${r["Daily Progress"] || r["Status"] || ''}</td>
+      <td>${r["Site ID"]||''}</td>
+      <td>${r["Site Name"]||''}</td>
+      <td>${r["NE ID"]||''}</td>
+      <td>${r["Daily Progress"]||r["Status"]||''}</td>
     </tr>
   `).join('');
   document.getElementById('siteTable').classList.add('compact');
-  // attach back button handler (close NE)
-  document.getElementById('closeNeBtn').onclick = () => {
-    closeNEList();
-    adjustContainerHeight();
-  };
+
+  document.getElementById('closeNeBtn').onclick=()=>{closeNEList(); adjustContainerHeight();}
 }
 
-/* close NE and restore site list */
 function closeNEList(){
-  currentSiteID = null;
-  const container = document.querySelector('.container-split');
+  currentSiteID=null;
+  const container=document.querySelector('.container-split');
   container.classList.remove('ne-active');
   document.getElementById('neListWrapper').setAttribute('aria-hidden','true');
-  document.querySelector('#neTable tbody').innerHTML = '';
+  document.querySelector('#neTable tbody').innerHTML='';
   populateRTSTable(siteDataGlobal);
   document.getElementById('siteTable').classList.remove('compact');
-  const scopeData = currentRTS ? siteDataGlobal.filter(r => (r.RTS||'') === currentRTS) : siteDataGlobal;
-  updateSummaryCards(scopeData);
+
+  const scopeSites=currentRTS?siteDataGlobal.filter(r=>r.RTS===currentRTS):siteDataGlobal;
+  const scopeNE=currentRTS?neDataGlobal.filter(n=>n.RTS===currentRTS):neDataGlobal;
+  updateSummaryCards(scopeSites,scopeNE);
 }
 
-
-/* ====== FILTERS / TABLE interactions ====== */
+/* ==========================
+   FILTER TABLE
+========================== */
 function filterTable(){
-  const searchVal = (document.getElementById('searchInput').value || '').toLowerCase();
-  const rtsVal = (document.getElementById('rtsFilter').value || '');
-  const fmVal = (document.getElementById('fmFilter').value || '');
+  const searchVal=(document.getElementById('searchInput').value||'').toLowerCase();
+  const rtsVal=document.getElementById('rtsFilter').value||'';
+  const fmVal=document.getElementById('fmFilter').value||'';
+  currentPage=1;
 
-  currentPage = 1; // reset halaman saat filter berubah
-
-  const filteredData = siteDataGlobal.filter(r => {
-    const text = ((r.RTS||'') + ' ' + (r["New FM Office"]||r["FM Office"]||'') + ' ' + (r["New Site ID"]||'') + ' ' + (r["Site Name"]||'')).toLowerCase();
-    const matchSearch = !searchVal || text.includes(searchVal);
-    const matchRts = !rtsVal || (r.RTS||'') === rtsVal;
-    const matchFm = !fmVal || ((r["New FM Office"]||r["FM Office"]||'') === fmVal);
-    return matchSearch && matchRts && matchFm;
+  const filteredData=siteDataGlobal.filter(r=>{
+    const text=((r.RTS||'')+' '+(r["New FM Office"]||r["FM Office"]||'')+' '+(r["New Site ID"]||'')+' '+(r["Site Name"]||'')).toLowerCase();
+    const matchSearch=!searchVal||text.includes(searchVal);
+    const matchRts=!rtsVal||(r.RTS||'')===rtsVal;
+    const matchFm=!fmVal||((r["New FM Office"]||r["FM Office"]||'')===fmVal);
+    return matchSearch&&matchRts&&matchFm;
   });
 
   populateSiteTable(filteredData);
 
-  // update summary cards sesuai filter
-  updateSummaryCards(filteredData);
+  const scopeNE=currentRTS?neDataGlobal.filter(n=>(n.RTS||'')===currentRTS):neDataGlobal;
+  updateSummaryCards(filteredData, scopeNE);
 }
 
-/* ====== BUTTONS ====== */
-document.getElementById('clearFilterBtn').addEventListener('click', () => {
-  document.getElementById('searchInput').value = '';
-  document.getElementById('rtsFilter').value = '';
-  document.getElementById('fmFilter').value = '';
-  currentRTS = null;
+/* ==========================
+   BUTTONS
+========================== */
+document.getElementById('clearFilterBtn').addEventListener('click',()=>{
+  document.getElementById('searchInput').value='';
+  document.getElementById('rtsFilter').value='';
+  document.getElementById('fmFilter').value='';
+  currentRTS=null;
   refreshDashboard();
-});
-
-document.getElementById('resetRtsBtn').addEventListener('click', () => {
-  // reset RTS summary to default
-  currentRTS = null;
-  document.getElementById('rtsFilter').value = '';
-  refreshDashboard()
   closeNEList();
 });
 
-/* ====== INITIALIZE ====== */
-document.addEventListener('DOMContentLoaded', () => {
+document.getElementById('resetRtsBtn').addEventListener('click',()=>{
+  currentRTS=null;
+  document.getElementById('rtsFilter').value='';
+  refreshDashboard();
+  closeNEList();
+});
+
+document.getElementById("refreshBtn").addEventListener("click", async ()=>{
+  console.log("🔄 Manual refresh triggered...");
+  showSpinner();
+  try{
+    await loadData();
+    console.log("✅ Data refreshed manually at", new Date().toLocaleTimeString());
+  } catch(err){
+    console.error("❌ Failed to refresh data:",err);
+  } finally{
+    hideSpinner();
+  }
+});
+
+/* ==========================
+   INITIALIZE
+========================== */
+document.addEventListener('DOMContentLoaded',()=>{
   loadData();
   adjustContainerHeight();
 });
 
-/* ====== UNIVERSAL SORTABLE TABLE HANDLER ====== */
-document.querySelectorAll('table.sortable').forEach(table => {
-  table.querySelectorAll('th').forEach((th, index) => {
-    th.addEventListener('click', () => {
-      const tbody = table.tBodies[0];
-      const rows = Array.from(tbody.rows);
-      const isAsc = !th.classList.contains('sorted-asc');
+/* ==========================
+   SORTABLE TABLE
+========================== */
+document.querySelectorAll('table.sortable').forEach(table=>{
+  table.querySelectorAll('th').forEach((th,index)=>{
+    th.addEventListener('click',()=>{
+      const tbody=table.tBodies[0];
+      const rows=Array.from(tbody.rows);
+      const isAsc=!th.classList.contains('sorted-asc');
 
-      rows.sort((a,b) => {
-        const aText = a.cells[index].textContent.trim();
-        const bText = b.cells[index].textContent.trim();
-        const aNum = parseFloat(aText.replace(/,/g,'')), bNum = parseFloat(bText.replace(/,/g,''));
-        if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      rows.sort((a,b)=>{
+        const aText=a.cells[index].textContent.trim();
+        const bText=b.cells[index].textContent.trim();
+        const aNum=parseFloat(aText.replace(/,/g,'')), bNum=parseFloat(bText.replace(/,/g,''));
+        if(!isNaN(aNum)&&!isNaN(bNum)) return aNum-bNum;
         return aText.localeCompare(bText);
       });
+      if(!isAsc) rows.reverse();
+      rows.forEach(r=>tbody.appendChild(r));
+      table.querySelectorAll('th').forEach(c=>c.classList.remove('sorted-asc','sorted-desc'));
+      th.classList.add(isAsc?'sorted-asc':'sorted-desc');
 
-      if (!isAsc) rows.reverse();
-
-      rows.forEach(r => tbody.appendChild(r));
-      table.querySelectorAll('th').forEach(c => c.classList.remove('sorted-asc','sorted-desc'));
-      th.classList.add(isAsc ? 'sorted-asc' : 'sorted-desc');
-
-      // Jika tabel siteTable, reattach handler klik row
-      if (table.id === 'siteTable') attachSiteRowHandlers();
+      if(table.id==='siteTable') attachSiteRowHandlers();
     });
   });
 });
 
-/* ====== PAGINATION ====== */
-let currentPage = 1;
-const rowsPerPage = 30;
+/* ==========================
+   PAGINATION
+========================== */
+let currentPage=1;
+const rowsPerPage=30;
 
 function renderPagination(totalPages){
-  const container = document.getElementById('sitePagination');
-  if(totalPages <= 1){
-    container.innerHTML = '';
-    return;
+  const container=document.getElementById('sitePagination');
+  if(totalPages<=1){ container.innerHTML=''; return; }
+
+  let html='';
+  html+=`<button class="btn pagination-btn" data-page="1"><<</button>`;
+  html+=`<button class="btn pagination-btn" data-page="${Math.max(currentPage-1,1)}"><</button>`;
+
+  let startPage=Math.max(1,currentPage-1);
+  let endPage=Math.min(totalPages,currentPage+1);
+  if(currentPage<=2) endPage=Math.min(3,totalPages);
+  if(currentPage>=totalPages-1) startPage=Math.max(totalPages-2,1);
+
+  if(startPage>1) html+='<span>...</span>';
+  for(let i=startPage;i<=endPage;i++){
+    html+=`<button class="btn pagination-btn ${i===currentPage?'active-page':''}" data-page="${i}">${i}</button>`;
   }
+  if(endPage<totalPages) html+='<span>...</span>';
+  html+=`<button class="btn pagination-btn" data-page="${Math.min(currentPage+1,totalPages)}">></button>`;
+  html+=`<button class="btn pagination-btn" data-page="${totalPages}">>></button>`;
 
-  let html = '';
-
-  // tombol first & previous
-  html += `<button class="btn pagination-btn" data-page="1"><<</button>`;
-  html += `<button class="btn pagination-btn" data-page="${Math.max(currentPage-1,1)}"><</button>`;
-
-  // range halaman tengah (max 5 page)
-  let startPage = Math.max(1, currentPage - 1);
-  let endPage = Math.min(totalPages, currentPage + 1);
-  if(currentPage <= 2) endPage = Math.min(3, totalPages);
-  if(currentPage >= totalPages - 1) startPage = Math.max(totalPages - 2, 1);
-
-  if(startPage > 1) html += `<span>...</span>`;
-
-  for(let i=startPage; i<=endPage; i++){
-    html += `<button class="btn pagination-btn ${i===currentPage ? 'active-page' : ''}" data-page="${i}">${i}</button>`;
-  }
-
-  if(endPage < totalPages) html += `<span>...</span>`;
-
-  // tombol next & last
-  html += `<button class="btn pagination-btn" data-page="${Math.min(currentPage+1,totalPages)}">></button>`;
-  html += `<button class="btn pagination-btn" data-page="${totalPages}">>></button>`;
-
-  container.innerHTML = html;
-
-  // attach click handler
+  container.innerHTML=html;
   container.querySelectorAll('.pagination-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      currentPage = Number(btn.dataset.page);
+    btn.addEventListener('click',()=>{
+      currentPage=Number(btn.dataset.page);
       populateSiteTable(siteDataGlobalFiltered);
     });
   });
 }
 
-/* ====== PAGINATION HELPERS ====== */
 function getPaginatedData(data){
-  const totalPages = Math.ceil(data.length / rowsPerPage);
-  const start = (currentPage - 1) * rowsPerPage;
-  const end = start + rowsPerPage;
-  const pageData = data.slice(start, end);
-  return { pageData, totalPages };
+  const totalPages=Math.ceil(data.length/rowsPerPage);
+  const start=(currentPage-1)*rowsPerPage;
+  const end=start+rowsPerPage;
+  const pageData=data.slice(start,end);
+  return {pageData,totalPages};
 }
 
-/* ====== ADJUST CONTAINER HEIGHT ====== */
-function adjustContainerHeight() {
-  const container = document.querySelector('.container-split');
-  const neWrapper = document.getElementById('neListWrapper');
+/* ==========================
+   ADJUST CONTAINER HEIGHT
+========================== */
+function adjustContainerHeight(){
+  const container=document.querySelector('.container-split');
+  const neWrapper=document.getElementById('neListWrapper');
 
-  if (!neWrapper || neWrapper.getAttribute('aria-hidden') === 'true') {
-    // hanya Site List aktif → tinggi mengikuti isi tabel
-    container.style.minHeight = 'auto';
+  if(!neWrapper || neWrapper.getAttribute('aria-hidden')==='true'){
+    container.style.minHeight='auto';
   } else {
-    // NE List aktif → set min-height agar layout tidak terlalu rapat
-    container.style.minHeight = '400px'; // bisa disesuaikan
+    container.style.minHeight='400px';
   }
 }
-
-
 </script>
 </body>
 </html>
-
-
-
