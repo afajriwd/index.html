@@ -1024,7 +1024,16 @@ async function exportDataToExcel(selectedRTS) {
   XLSX.utils.book_append_sheet(wb, wsSites, "Site List");
   XLSX.utils.book_append_sheet(wb, wsNE, "NE List");
 
-  const fileName = `RTS_Export_${new Date().toISOString().slice(0,10)}.xlsx`;
+  // === Format tanggal: DDMMYYYY ===
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const year = now.getFullYear();
+  const formattedDate = `${day}${month}${year}`;
+
+  // === Nama file baru ===
+  const fileName = `(2025 - 2026) Netgear Physical Count - ${formattedDate}.xlsx`;
+
   XLSX.writeFile(wb, fileName);
 }
 
@@ -1032,3 +1041,4 @@ async function exportDataToExcel(selectedRTS) {
 </script>
 </body>
 </html>
+
