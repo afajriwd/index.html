@@ -198,7 +198,98 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   color: #e6edf3;
   text-decoration: none;
 }
+.modal {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(13,17,23,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.modal.active {
+  opacity: 1;
+  pointer-events: all;
+}
 
+.modal-content {
+  background: #161b22;
+  color: #e6edf3;
+  padding: 20px;
+  border: 1px solid #30363d;
+  border-radius: 20px;
+  width: 350px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  transform: translateY(-20px);
+  transition: transform 0.3s ease;
+}
+.modal.active .modal-content {
+  transform: translateY(0);
+}
+
+.modal-content h3 {
+  color: #58a6ff;
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: 600;
+  border-bottom: 1px solid #30363d;
+  padding-bottom: 6px;
+}
+
+/* All RTS */
+#selectAllRTS + label {
+  font-size: 1.05rem;
+  font-weight: 600;
+  display: block;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+/* List RTS */
+#rtsCheckboxContainer label {
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: background 0.2s, color 0.2s;
+  display: block;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #30363d; /* garis pembatas tiap RTS */
+  padding-left: 18px; /* agar garis mulai dari kiri checkbox */
+}
+
+/* Hover */
+#rtsCheckboxContainer label:hover,
+#selectAllRTS:hover {
+  background-color: rgba(88,166,255,0.1);
+  color: #58a6ff;
+}
+
+/* Button Hover */
+.btn {
+  background: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s, color 0.2s;
+}
+.btn:hover {
+  background: rgba(88,166,255,0.1);
+  color: #58a6ff;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end; /* tombol di kanan */
+  gap: 10px;                 /* jarak antar tombol */
+  margin-top: 12px;
+}
 </style>
 
 
@@ -249,6 +340,7 @@ table:not(.sortable) th:hover{color:#58a6ff;}
       <div style="display:flex; gap:8px; align-items:center;">
         <button id="resetRtsBtn" class="btn">🔁 Reset</button>
         <button id="refreshBtn" class="btn">🔄 Refresh</button>
+		<button id="exportBtn" class="btn">📤 Export</button>
       </div>
     </div>
 
@@ -275,13 +367,32 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   </div>
 </div>
 
+<!-- Export Modal -->
+<div id="exportModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Select RTS</h3>
+    <div style="margin-bottom:10px; padding-bottom:4px; border-bottom:1px solid #30363d;">
+      <label for="selectAllRTS" style="font-size:1.05rem; font-weight:600; display:block; cursor:pointer;">
+        <input type="checkbox" id="selectAllRTS"> All RTS
+      </label>
+    </div>
+    <div id="rtsCheckboxContainer" style="margin-left:12px; padding-top:6px;">
+      <!-- RTS list akan di-generate via JS -->
+    </div>
+    <div class="modal-buttons">
+      <button id="cancelExportBtn" class="btn">Cancel</button>
+      <button id="confirmExportBtn" class="btn">Export</button>
+    </div>
+  </div>
+</div>
+
 <!-- Site List + NE List split -->
 <div class="dashboard">
   <div class="card container-split" style="grid-column:1/-1; padding:12px;">
     <!-- Site List card (will shrink) -->
     <div id="siteListWrapper" class="site-list-card">
       <div class="flex-header">
-        <h3>📋 Site List (Ringkasan)</h3>
+        <h3>📋 Site List</h3>
         <div style="display:flex; gap:8px; align-items:center;">
           <button id="clearFilterBtn" class="btn">🔄 Clear Filter</button>
         </div>
@@ -338,11 +449,24 @@ table:not(.sortable) th:hover{color:#58a6ff;}
 </div>
 
 <footer class="footer">
-  ©2025 | Daily Update by Admin | <a href="https://www.instagram.com/afajriwd" target="_blank" class="hover-accent">@afajriwd</a>
+  <span id="lastUpdateText">Last Update:</span> |
+  <a href="https://www.instagram.com/afajriwd" target="_blank" class="hover-accent">@afajriwd</a>
 </footer>
 
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+
+function updateFooterLastUpdate() {
+  // Ambil Last Update dari kolom R (index 17 karena 0-based)
+  if (siteDataGlobal && siteDataGlobal.length > 0) {
+    const lastUpdate = siteDataGlobal[0]["Last Update"] || siteDataGlobal[0]["R"] || "";
+
+    document.getElementById("lastUpdateText").textContent =
+      `Last Update: ${lastUpdate}`;
+  }
+}
+
 /* ==========================
    CONFIG & STATE
 ========================== */
@@ -383,8 +507,7 @@ async function loadData(){
 
     siteDataGlobal = Array.isArray(siteJson)?siteJson:[];
     neDataGlobal = Array.isArray(neJson)?neJson:[];
-
-    // initial render
+    updateFooterLastUpdate();
     updateSummaryCards(siteDataGlobal, neDataGlobal);
     refreshDashboard();
   } catch(err){
@@ -721,18 +844,20 @@ document.getElementById('resetRtsBtn').addEventListener('click',()=>{
   closeNEList();
 });
 
-document.getElementById("refreshBtn").addEventListener("click", async ()=>{
+document.getElementById("refreshBtn").addEventListener("click", async ()=> {
   console.log("🔄 Manual refresh triggered...");
   showSpinner();
-  try{
+  try {
     await loadData();
+    updateFooterLastUpdate();
     console.log("✅ Data refreshed manually at", new Date().toLocaleTimeString());
-  } catch(err){
-    console.error("❌ Failed to refresh data:",err);
-  } finally{
+  } catch(err) {
+    console.error("❌ Failed to refresh data:", err);
+  } finally {
     hideSpinner();
   }
 });
+
 
 /* ==========================
    INITIALIZE
@@ -826,6 +951,84 @@ function adjustContainerHeight(){
     container.style.minHeight='400px';
   }
 }
+
+// === Button Export ===
+/* ===== TOMBOL EXPORT ===== */
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const modal = document.getElementById("exportModal");
+  const container = document.getElementById("rtsCheckboxContainer");
+  container.innerHTML = "";
+
+  // Daftar RTS unik
+  const rtsList = [...new Set(siteDataGlobal.map(s => s.RTS))].sort();
+
+  // Tambahkan checkbox RTS
+  rtsList.forEach(rts => {
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" class="rtsOption" value="${rts}"> ${rts}`;
+    container.appendChild(label);
+  });
+
+  // Tampilkan modal
+  modal.classList.remove("hidden");
+  modal.classList.add("active");
+});
+
+/* ===== BUTTON CANCEL ===== */
+document.getElementById("cancelExportBtn").addEventListener("click", () => {
+  closeExportModal();
+});
+
+/* ===== KLIK DI LUAR MODAL ===== */
+document.getElementById("exportModal").addEventListener("click", (e) => {
+  const modalContent = document.querySelector("#exportModal .modal-content");
+  if (!modalContent.contains(e.target)) {
+    closeExportModal();
+  }
+});
+
+/* ===== FUNGSI CLOSE MODAL ===== */
+function closeExportModal() {
+  const modal = document.getElementById("exportModal");
+  modal.classList.remove("active");
+  setTimeout(() => modal.classList.add("hidden"), 250);
+}
+
+/* ===== SELECT ALL RTS ===== */
+document.getElementById("selectAllRTS").addEventListener("change", (e) => {
+  document.querySelectorAll(".rtsOption").forEach(cb => cb.checked = e.target.checked);
+});
+
+/* ===== CONFIRM EXPORT ===== */
+document.getElementById("confirmExportBtn").addEventListener("click", async () => {
+  const selectedRTS = [...document.querySelectorAll(".rtsOption:checked")].map(cb => cb.value);
+  if (selectedRTS.length === 0) {
+    alert("Pilih minimal satu RTS untuk export.");
+    return;
+  }
+
+  closeExportModal();
+  await exportDataToExcel(selectedRTS);
+});
+
+/* ===== EXPORT DATA TO EXCEL ===== */
+async function exportDataToExcel(selectedRTS) {
+  const wb = XLSX.utils.book_new();
+
+  const filteredSites = siteDataGlobal.filter(s => selectedRTS.includes(s.RTS));
+  const filteredNE = neDataGlobal.filter(n => selectedRTS.includes(n.RTS));
+
+  const wsSites = XLSX.utils.json_to_sheet(filteredSites);
+  const wsNE = XLSX.utils.json_to_sheet(filteredNE);
+
+  XLSX.utils.book_append_sheet(wb, wsSites, "Site List");
+  XLSX.utils.book_append_sheet(wb, wsNE, "NE List");
+
+  const fileName = `RTS_Export_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+
 </script>
 </body>
 </html>
