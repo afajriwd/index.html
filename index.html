@@ -41,7 +41,7 @@ header{background:var(--card);padding:20px;text-align:center;font-size:1.25rem;
 .value{font-size:1.4rem;font-weight:600;color:var(--accent);}
 
 /* Filter Area */
-.filter-container{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+.filter-container{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
 .filter-container input,.filter-container select{padding:8px;border-radius:6px;
   border:1px solid var(--border);background:var(--bg);color:#e6edf3;font-size:0.95rem;}
 .flex-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;}
@@ -290,9 +290,8 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   gap: 10px;                 /* jarak antar tombol */
   margin-top: 12px;
 }
+
 </style>
-
-
 </head>
 <body>
 <header>Netgear Asset Tagging Jabo-2 PSD</header>
@@ -402,6 +401,7 @@ table:not(.sortable) th:hover{color:#58a6ff;}
         <input id="searchInput" type="text" placeholder="Cari Site ID, Nama Site atau RTS" onkeyup="filterTable()" />
         <select id="rtsFilter" onchange="handleRTSFilterChange()"><option value="">Filter RTS</option></select>
         <select id="fmFilter" onchange="filterTable()"><option value="">Filter FM Office</option></select>
+		<select id="statusFilter" onchange="filterTable()"><option value="">Filter Status</option></select>
       </div>
 
       <div class="table-scroll-container" id="siteTableContainer">
@@ -702,14 +702,17 @@ function populateRTSTable(data){
    FILTERS
 ========================== */
 function populateFilters(data){
-  const rtsSet=[...new Set(data.map(r=>r.RTS).filter(Boolean))].sort();
-  const fmSet=[...new Set(data.map(r=>r["New FM Office"]).filter(Boolean))].sort();
+  const rtsSet = [...new Set(data.map(r=>r.RTS).filter(Boolean))].sort();
+  const fmSet  = [...new Set(data.map(r=>r["New FM Office"]).filter(Boolean))].sort();
+  const statusSet = [...new Set(data.map(r=>r["Progress Today"]).filter(Boolean))].sort();
 
-  const rtsFilter=document.getElementById('rtsFilter');
-  const fmFilter=document.getElementById('fmFilter');
+  const rtsFilter = document.getElementById('rtsFilter');
+  const fmFilter = document.getElementById('fmFilter');
+  const statusFilter = document.getElementById('statusFilter');
 
-  rtsFilter.innerHTML=`<option value="">Filter RTS</option>`+rtsSet.map(r=>`<option value="${r}">${r}</option>`).join('');
-  fmFilter.innerHTML=`<option value="">Filter FM Office</option>`+fmSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+  rtsFilter.innerHTML = `<option value="">Filter RTS</option>` + rtsSet.map(r=>`<option value="${r}">${r}</option>`).join('');
+  fmFilter.innerHTML = `<option value="">Filter FM Office</option>` + fmSet.map(f=>`<option value="${f}">${f}</option>`).join('');
+  statusFilter.innerHTML = `<option value="">Filter Status</option>` + statusSet.map(s=>`<option value="${s}">${s}</option>`).join('');
 }
 
 function handleRTSFilterChange(){
@@ -806,22 +809,25 @@ function closeNEList(){
    FILTER TABLE
 ========================== */
 function filterTable(){
-  const searchVal=(document.getElementById('searchInput').value||'').toLowerCase();
-  const rtsVal=document.getElementById('rtsFilter').value||'';
-  const fmVal=document.getElementById('fmFilter').value||'';
-  currentPage=1;
+  const searchVal = (document.getElementById('searchInput').value || '').toLowerCase();
+  const rtsVal    = document.getElementById('rtsFilter').value || '';
+  const fmVal     = document.getElementById('fmFilter').value || '';
+  const statusVal = document.getElementById('statusFilter').value || '';
+  currentPage = 1;
 
-  const filteredData=siteDataGlobal.filter(r=>{
-    const text=((r.RTS||'')+' '+(r["New FM Office"]||r["FM Office"]||'')+' '+(r["New Site ID"]||'')+' '+(r["Site Name"]||'')).toLowerCase();
-    const matchSearch=!searchVal||text.includes(searchVal);
-    const matchRts=!rtsVal||(r.RTS||'')===rtsVal;
-    const matchFm=!fmVal||((r["New FM Office"]||r["FM Office"]||'')===fmVal);
-    return matchSearch&&matchRts&&matchFm;
+  const filteredData = siteDataGlobal.filter(r => {
+    const text = ((r.RTS||'')+' '+(r["New FM Office"]||r["FM Office"]||'')+' '+(r["New Site ID"]||'')+' '+(r["Site Name"]||'')).toLowerCase();
+    const matchSearch = !searchVal || text.includes(searchVal);
+    const matchRts    = !rtsVal || (r.RTS||'') === rtsVal;
+    const matchFm     = !fmVal  || (r["New FM Office"]||r["FM Office"]||'') === fmVal;
+    const matchStatus = !statusVal || (r["Progress Today"]||'') === statusVal;
+
+    return matchSearch && matchRts && matchFm && matchStatus;
   });
 
   populateSiteTable(filteredData);
 
-  const scopeNE=currentRTS?neDataGlobal.filter(n=>(n.RTS||'')===currentRTS):neDataGlobal;
+  const scopeNE = currentRTS ? neDataGlobal.filter(n=> (n.RTS||'')===currentRTS ) : neDataGlobal;
   updateSummaryCards(filteredData, scopeNE);
 }
 
@@ -1036,6 +1042,8 @@ async function exportDataToExcel(selectedRTS) {
 
   XLSX.writeFile(wb, fileName);
 }
+
+
 </script>
 </body>
 </html>
