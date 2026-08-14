@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Netgear Asset Tagging Jabo-2 PSD</title>
+<title>2026-2027 | Asset Tagging PSD</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
 <style>
 :root{
@@ -285,6 +285,30 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   margin-top: 12px;
 }
 
+/* ===== Monthly Trend Chart ===== */
+/* Uses the same .dashboard + .card container style as RTS Summary. */
+.monthly-trend-dashboard{
+  margin-bottom: 0;
+}
+.monthly-chart-wrapper{
+  position:relative;
+  width:100%;
+  height:430px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,0.01));
+  overflow:hidden;
+}
+.monthly-chart-wrapper canvas{
+  width:100% !important;
+  height:100% !important;
+}
+@media(max-width:768px){
+  .monthly-chart-wrapper{
+    height:360px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -322,6 +346,19 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   <div class="card">
     <h3>Total Achievement</h3>
     <div id="total-achievement" class="value">...</div>
+  </div>
+</div>
+
+<!-- Monthly Trend -->
+<div class="dashboard monthly-trend-dashboard">
+  <div class="card" style="grid-column:1/-1">
+    <div class="flex-header">
+      <h3>📈 Monthly Trend</h3>
+    </div>
+
+    <div class="monthly-chart-wrapper">
+      <canvas id="monthlyTrendChart"></canvas>
+    </div>
   </div>
 </div>
 
@@ -438,7 +475,7 @@ table:not(.sortable) th:hover{color:#58a6ff;}
         </table>
       </div>
     </div>
-      <div id="sitePagination" class="text-center""></div>
+      <div id="sitePagination" class="text-center"></div>
   </div>
 </div>
 
@@ -447,9 +484,152 @@ table:not(.sortable) th:hover{color:#58a6ff;}
   <a href="https://www.instagram.com/afajriwd" target="_blank" class="hover-accent">@afajriwd</a>
 </footer>
 
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+
+let monthlyTrendChart = null;
+
+function renderMonthlyTrend(data) {
+  // SITE_LIST!U1:Y13 contains:
+  // Month | Submitted | Closed | SOW | Target
+  // We intentionally use only Month, Closed and SOW.
+  const monthlyRows = (Array.isArray(data) ? data : [])
+    .map(row => ({
+      Month: String(row["Month"] ?? "").trim(),
+      Closed: safeNum(row["Closed"]),
+      SOW: safeNum(row["SOW"])
+    }))
+    .filter(row => row.Month !== "");
+
+  const months = monthlyRows.map(row => row.Month);
+  const closed = monthlyRows.map(row => row.Closed);
+  const sow = monthlyRows.map(row => row.SOW);
+
+  const canvas = document.getElementById("monthlyTrendChart");
+  if (!canvas) return;
+
+  if (monthlyTrendChart) {
+    monthlyTrendChart.destroy();
+    monthlyTrendChart = null;
+  }
+
+  monthlyTrendChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: months,
+      datasets: [
+        {
+          label: "Closed",
+          data: closed,
+          borderColor: "#6aa84f",
+          backgroundColor: "#6aa84f",
+          borderWidth: 3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: "#6aa84f",
+          pointBorderColor: "#6aa84f",
+          tension: 0
+        },
+        {
+          label: "SOW",
+          data: sow,
+          borderColor: "#f44336",
+          backgroundColor: "#f44336",
+          borderWidth: 3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: "#f44336",
+          pointBorderColor: "#f44336",
+          tension: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 500
+      },
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            color: "#e6edf3",
+            usePointStyle: true,
+            pointStyle: "circle",
+            padding: 20
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `${context.dataset.label}: ${Number(context.parsed.y).toLocaleString("id-ID")}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Month",
+            color: "#8b949e"
+          },
+          ticks: {
+            color: "#e6edf3"
+          },
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            color: "#e6edf3"
+          },
+          grid: {
+            color: "rgba(139,148,158,0.18)"
+          }
+        }
+      }
+    },
+    plugins: [
+      {
+        id: "valueLabels",
+        afterDatasetsDraw(chart) {
+          const ctx = chart.ctx;
+
+          chart.data.datasets.forEach((dataset, datasetIndex) => {
+            const meta = chart.getDatasetMeta(datasetIndex);
+
+            meta.data.forEach((point, index) => {
+              const value = dataset.data[index];
+              if (value === null || value === undefined || value === "") return;
+
+              ctx.save();
+              ctx.font = "600 12px Inter, Arial, sans-serif";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "bottom";
+              ctx.fillStyle = dataset.borderColor;
+              ctx.fillText(
+                Number(value).toLocaleString("id-ID"),
+                point.x,
+                point.y - 8
+              );
+              ctx.restore();
+            });
+          });
+        }
+      }
+    ]
+  });
+}
 
 function updateFooterLastUpdate() {
   // Ambil Last Update dari kolom R (index 17 karena 0-based)
@@ -470,6 +650,8 @@ const NE_SHEET = "NE_ID";
 
 const siteURL = `https://opensheet.elk.sh/${SHEET_ID}/${encodeURIComponent(SITE_SHEET)}`;
 const neURL = `https://opensheet.elk.sh/${SHEET_ID}/${encodeURIComponent(NE_SHEET)}`;
+
+
 
 const spinner = document.getElementById('spinner');
 
@@ -501,6 +683,11 @@ async function loadData(){
 
     siteDataGlobal = Array.isArray(siteJson)?siteJson:[];
     neDataGlobal = Array.isArray(neJson)?neJson:[];
+
+    // Monthly Trend uses the same SITE_LIST datasource.
+    // Only rows containing Month are used; only Month, Closed and SOW are read.
+    renderMonthlyTrend(siteDataGlobal);
+
     updateFooterLastUpdate();
     updateSummaryCards(siteDataGlobal, neDataGlobal);
     refreshDashboard();
