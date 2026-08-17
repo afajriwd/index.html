@@ -381,12 +381,12 @@ table:not(.sortable) th:hover{color:#58a6ff;}
     <th>RTS / FM Office</th>
     <th class="text-center hover-accent">OPEN</th>
     <th class="text-center hover-accent">PARTIAL</th>
-    <th class="text-center hover-accent">Need Approval L0</th> <!-- baru -->
-    <th class="text-center hover-accent">Need Approval L1</th> <!-- baru -->
+    <th class="text-center hover-accent">Approval L0</th> <!-- baru -->
+    <th class="text-center hover-accent">Approval L1</th> <!-- baru -->
     <th class="text-center hover-accent">SUBMITTED PARTIAL</th>
     <th class="text-center hover-accent">SUBMITTED</th>
-    <th class="text-center hover-accent">COMPLETED</th>
-    <th class="text-center hover-accent">GrandTotal</th>
+    <th class="text-center hover-accent">CLOSED</th>
+    <th class="text-center hover-accent">GRAND TOTAL</th>
     <th class="text-center hover-accent">Achievement (%)</th>
   </tr>
 </thead>
@@ -707,7 +707,7 @@ function updateSummaryCards(siteData=siteDataGlobal, neData=neDataGlobal){
   const totalSiteAll = siteData.length;
   const openStatuses = ["OPEN","PARTIAL","SUBMITTED PARTIAL"];
   const totalSiteOpen = siteData.filter(r => openStatuses.includes(((r["Progress Today"]||"")+"").trim().toUpperCase())).length;
-  const totalSiteClosed = siteData.filter(r => ["COMPLETED","SUBMITTED"].includes(((r["Progress Today"]||"")+"").trim().toUpperCase())).length;
+  const totalSiteClosed = siteData.filter(r => ["COMPLETED","SUBMITTED","CLOSED"].includes(((r["Progress Today"]||"")+"").trim().toUpperCase())).length;
 
   if(document.getElementById('total-site'))
     document.getElementById('total-site').textContent = `${totalSiteAll} / ${totalSiteOpen} / ${totalSiteClosed}`;
@@ -723,10 +723,10 @@ function updateSummaryCards(siteData=siteDataGlobal, neData=neDataGlobal){
   const sitesL0 = siteData.filter(r=>{
     const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
     const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
-    return approval==="NEED APPROVAL 0" || (["SUBMITTED"].includes(prog) && approval!=="NEED APPROVAL 1");
+    return approval==="APPROVAL 0" || (["SUBMITTED"].includes(prog) && approval!=="APPROVAL 1");
   }).length;
 
-  const sitesL1 = siteData.filter(r=>((r["Approval Status"]||"")+"").trim().toUpperCase()==="NEED APPROVAL 1").length;
+  const sitesL1 = siteData.filter(r=>((r["Approval Status"]||"")+"").trim().toUpperCase()==="APPROVAL 1").length;
 
   const nesL0 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL0").length;
   const nesL1 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL1").length;
@@ -762,21 +762,30 @@ function populateRTSTable(data){
   const isRtsSelected = !!currentRTS;
   const groups = {};
 
-  const init = ()=>({OPEN:0, PARTIAL:0, SUBMITTED_PARTIAL:0, SUBMITTED:0, COMPLETED:0,"Need Approval L0":0,"Need Approval L1":0});
+  const init = ()=>({
+    OPEN:0,
+    PARTIAL:0,
+    SUBMITTED_PARTIAL:0,
+    SUBMITTED:0,
+    COMPLETED:0,
+    CLOSED:0,
+    "Approval L0":0,
+    "Approval L1":0
+  });
 
   if(isRtsSelected){
     // group by FM Office
     data.filter(r=>(r.RTS||'')===currentRTS).forEach(r=>{
       const fm = r["New FM Office"]||r["FM Office"]||"N/A";
       if(!groups[fm]) groups[fm]=init();
-      const st = (r["Progress Today"]||"").trim().toUpperCase().replace(/\s+/g,'_');
+      const st = ((r["Progress Today"]||"")+"").trim().toUpperCase().replace(/\s+/g,'_');
       groups[fm][st] = (groups[fm][st]||0)+1;
 
-      const approval = r["Approval Status"]||"";
-      const prog = (r["Progress Today"]||"").toUpperCase();
-      if(approval==="Need Approval 0" || (["SUBMITTED"].includes(prog) && approval!=="Need Approval 1"))
-        groups[fm]["Need Approval L0"]++;
-      if(approval==="Need Approval 1") groups[fm]["Need Approval L1"]++;
+      const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
+      const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
+      if(approval==="APPROVAL 0" || (prog==="SUBMITTED" && approval!=="APPROVAL 1"))
+        groups[fm]["Approval L0"]++;
+      if(approval==="APPROVAL 1") groups[fm]["Approval L1"]++;
     });
     document.getElementById('rtsTitle').textContent=`📊 FM Office Summary — ${currentRTS}`;
   } else {
@@ -784,33 +793,48 @@ function populateRTSTable(data){
     data.forEach(r=>{
       const rts = r.RTS||'N/A';
       if(!groups[rts]) groups[rts]=init();
-      const st = (r["Progress Today"]||"").trim().toUpperCase().replace(/\s+/g,'_');
+      const st = ((r["Progress Today"]||"")+"").trim().toUpperCase().replace(/\s+/g,'_');
       groups[rts][st]=(groups[rts][st]||0)+1;
 
-      const approval = r["Approval Status"]||"";
-      const prog = (r["Progress Today"]||"").toUpperCase();
-      if(approval==="Need Approval 0" || (["SUBMITTED"].includes(prog) && approval!=="Need Approval 1"))
-        groups[rts]["Need Approval L0"]++;
-      if(approval==="Need Approval 1") groups[rts]["Need Approval L1"]++;
+      const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
+      const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
+      if(approval==="APPROVAL 0" || (prog==="SUBMITTED" && approval!=="APPROVAL 1"))
+        groups[rts]["Approval L0"]++;
+      if(approval==="APPROVAL 1") groups[rts]["Approval L1"]++;
     });
     document.getElementById('rtsTitle').textContent='📊 RTS Summary';
   }
 
   // render rows
   Object.entries(groups).forEach(([key,val])=>{
-    const total=val.OPEN+val.PARTIAL+val.SUBMITTED_PARTIAL+val.SUBMITTED+val.COMPLETED;
-    const ach = total?((val.COMPLETED+val.SUBMITTED)/total*100):0;
+    // CLOSED pada RTS Summary adalah agregasi:
+    // CLOSED + COMPLETED + SUBMITTED
+    const closed =
+      safeNum(val.CLOSED) +
+      safeNum(val.COMPLETED) +
+      safeNum(val.SUBMITTED);
+
+    // GRAND TOTAL tidak menghitung SUBMITTED/COMPLETED dua kali,
+    // karena keduanya sudah masuk ke CLOSED aggregate.
+    const total =
+      safeNum(val.OPEN) +
+      safeNum(val.PARTIAL) +
+      safeNum(val.SUBMITTED_PARTIAL) +
+      closed;
+
+    const ach = total ? (closed / total * 100) : 0;
+
     const tr=document.createElement('tr');
     tr.dataset.key=key;
     tr.innerHTML=`
       <td>${key}</td>
-      <td class="text-center">${val.OPEN}</td>
-      <td class="text-center">${val.PARTIAL}</td>
-      <td class="text-center">${val["Need Approval L0"]}</td>
-      <td class="text-center">${val["Need Approval L1"]}</td>
-      <td class="text-center">${val.SUBMITTED_PARTIAL}</td>
-      <td class="text-center">${val.SUBMITTED}</td>
-      <td class="text-center">${val.COMPLETED}</td>
+      <td class="text-center">${safeNum(val.OPEN)}</td>
+      <td class="text-center">${safeNum(val.PARTIAL)}</td>
+      <td class="text-center">${safeNum(val["Approval L0"])}</td>
+      <td class="text-center">${safeNum(val["Approval L1"])}</td>
+      <td class="text-center">${safeNum(val.SUBMITTED_PARTIAL)}</td>
+      <td class="text-center">${safeNum(val.SUBMITTED)}</td>
+      <td class="text-center">${closed}</td>
       <td class="text-center">${total}</td>
       <td class="text-center">${ach.toFixed(2)}%</td>
     `;
@@ -822,20 +846,31 @@ function populateRTSTable(data){
     for(const k in v) acc[k]=(acc[k]||0)+v[k];
     return acc;
   },{});
-  const grandTotal=grand.OPEN+grand.PARTIAL+grand.SUBMITTED_PARTIAL+grand.SUBMITTED+grand.COMPLETED;
-  const grandAch=grandTotal?((grand.COMPLETED+grand.SUBMITTED)/grandTotal*100):0;
-  globalGrandAchievement=grandAch;
+  // Gunakan definisi CLOSED yang sama dengan setiap baris RTS.
+  const grandClosed =
+    safeNum(grand.CLOSED) +
+    safeNum(grand.COMPLETED) +
+    safeNum(grand.SUBMITTED);
+
+  const grandTotal =
+    safeNum(grand.OPEN) +
+    safeNum(grand.PARTIAL) +
+    safeNum(grand.SUBMITTED_PARTIAL) +
+    grandClosed;
+
+  const grandAch = grandTotal ? (grandClosed / grandTotal * 100) : 0;
+  globalGrandAchievement = grandAch;
 
   document.getElementById('rtsGrandTotal').innerHTML=`
     <tr style="font-weight:600; background:var(--panel);">
       <td>Grand Total</td>
-      <td class="text-center">${grand.OPEN}</td>
-      <td class="text-center">${grand.PARTIAL}</td>
-      <td class="text-center">${grand["Need Approval L0"]}</td>
-      <td class="text-center">${grand["Need Approval L1"]}</td>
-      <td class="text-center">${grand.SUBMITTED_PARTIAL}</td>
-      <td class="text-center">${grand.SUBMITTED}</td>
-      <td class="text-center">${grand.COMPLETED}</td>
+      <td class="text-center">${safeNum(grand.OPEN)}</td>
+      <td class="text-center">${safeNum(grand.PARTIAL)}</td>
+      <td class="text-center">${safeNum(grand["Approval L0"])}</td>
+      <td class="text-center">${safeNum(grand["Approval L1"])}</td>
+      <td class="text-center">${safeNum(grand.SUBMITTED_PARTIAL)}</td>
+      <td class="text-center">${safeNum(grand.SUBMITTED)}</td>
+      <td class="text-center">${grandClosed}</td>
       <td class="text-center">${grandTotal}</td>
       <td class="text-center">${grandAch.toFixed(2)}%</td>
     </tr>
@@ -1200,6 +1235,7 @@ async function exportDataToExcel(selectedRTS) {
 
   XLSX.writeFile(wb, fileName);
 }
+
 
 </script>
 </body>
