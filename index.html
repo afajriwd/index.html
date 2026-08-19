@@ -381,8 +381,8 @@ table:not(.sortable) th:hover{color:#58a6ff;}
     <th>RTS / FM Office</th>
     <th class="text-center hover-accent">Open</th>
     <th class="text-center hover-accent">Partial</th>
-    <th class="text-center hover-accent">Approval L0</th> <!-- baru -->
-    <th class="text-center hover-accent">Approval L1</th> <!-- baru -->
+    <th class="text-center hover-accent">Approval L0</th>
+    <th class="text-center hover-accent">Approval L1</th>
     <th class="text-center hover-accent">Closed Partial</th>
     <th class="text-center hover-accent">Closed Today</th>
     <th class="text-center hover-accent">Closed Total</th>
@@ -723,10 +723,10 @@ function updateSummaryCards(siteData=siteDataGlobal, neData=neDataGlobal){
   const sitesL0 = siteData.filter(r=>{
     const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
     const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
-    return approval==="APPROVAL 0" || (["SUBMITTED"].includes(prog) && approval!=="APPROVAL 1");
+    return approval==="NEED APPROVAL 0" || (["SUBMITTED"].includes(prog) && approval!=="NEED APPROVAL 1");
   }).length;
 
-  const sitesL1 = siteData.filter(r=>((r["Approval Status"]||"")+"").trim().toUpperCase()==="APPROVAL 1").length;
+  const sitesL1 = siteData.filter(r=>((r["Approval Status"]||"")+"").trim().toUpperCase()==="NEED APPROVAL 1").length;
 
   const nesL0 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL0").length;
   const nesL1 = neData.filter(n=>((n["Daily Progress"]||"")+"").trim().toUpperCase()==="WAITING APPROVAL1").length;
@@ -783,9 +783,9 @@ function populateRTSTable(data){
 
       const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
       const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
-      if(approval==="APPROVAL 0" || (prog==="SUBMITTED" && approval!=="APPROVAL 1"))
+      if(approval==="NEED APPROVAL 0" || (prog==="SUBMITTED" && approval!=="NEED APPROVAL 1"))
         groups[fm]["Approval L0"]++;
-      if(approval==="APPROVAL 1") groups[fm]["Approval L1"]++;
+      if(approval==="NEED APPROVAL 1") groups[fm]["Need Approval L1"]++;
     });
     document.getElementById('rtsTitle').textContent=`📊 FM Office Summary — ${currentRTS}`;
   } else {
@@ -798,9 +798,9 @@ function populateRTSTable(data){
 
       const approval = ((r["Approval Status"]||"")+"").trim().toUpperCase();
       const prog = ((r["Progress Today"]||"")+"").trim().toUpperCase();
-      if(approval==="APPROVAL 0" || (prog==="SUBMITTED" && approval!=="APPROVAL 1"))
+      if(approval==="NEED APPROVAL 0" || (prog==="SUBMITTED" && approval!=="NEED APPROVAL 1"))
         groups[rts]["Approval L0"]++;
-      if(approval==="APPROVAL 1") groups[rts]["Approval L1"]++;
+      if(approval==="NEED APPROVAL 1") groups[rts]["Approval L1"]++;
     });
     document.getElementById('rtsTitle').textContent='📊 RTS Summary';
   }
