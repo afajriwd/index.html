@@ -497,7 +497,7 @@ function renderMonthlyTrend(data) {
   const monthlyRows = (Array.isArray(data) ? data : [])
     .map(row => ({
       Month: String(row["Month"] ?? "").trim(),
-      Closed: safeNum(row["Closed"]),
+      Closed: safeNum(row["CLOSED"]),
       SOW: safeNum(row["SOW"])
     }))
     .filter(row => row.Month !== "");
